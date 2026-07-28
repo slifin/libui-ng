@@ -254,7 +254,7 @@ void uiMenuItemSetChecked(uiMenuItem *item, int checked)
 	NSInteger state;
 
 	state = NSOffState;
-	if ([item->item state] == NSOffState)
+	if (checked)
 		state = NSOnState;
 	[item->item setState:state];
 }

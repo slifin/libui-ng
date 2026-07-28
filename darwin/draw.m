@@ -375,16 +375,12 @@ void uiDrawMatrixMultiply(uiDrawMatrix *dest, uiDrawMatrix *src)
 	c2m(&c, dest);
 }
 
-// there is no test for invertibility; CGAffineTransformInvert() is merely documented as returning the matrix unchanged if it isn't invertible
-// therefore, special care must be taken to catch matrices who are their own inverses
-// TODO figure out which matrices these are and do so
 int uiDrawMatrixInvertible(uiDrawMatrix *m)
 {
-	CGAffineTransform c, d;
+	CGAffineTransform c;
 
 	m2c(m, &c);
-	d = CGAffineTransformInvert(c);
-	return CGAffineTransformEqualToTransform(c, d) == false;
+	return ((c.a * c.d) - (c.b * c.c)) != 0;
 }
 
 int uiDrawMatrixInvert(uiDrawMatrix *m)
@@ -392,9 +388,9 @@ int uiDrawMatrixInvert(uiDrawMatrix *m)
 	CGAffineTransform c, d;
 
 	m2c(m, &c);
-	d = CGAffineTransformInvert(c);
-	if (CGAffineTransformEqualToTransform(c, d))
+	if (((c.a * c.d) - (c.b * c.c)) == 0)
 		return 0;
+	d = CGAffineTransformInvert(c);
 	c2m(&d, m);
 	return 1;
 }
