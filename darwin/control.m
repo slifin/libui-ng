@@ -3,11 +3,23 @@
 
 static BOOL responderBelongsToView(NSResponder *responder, NSView *view)
 {
+	NSView *subview;
+	NSText *editor;
+
 	if (responder == nil || view == nil)
 		return NO;
-	if (![responder isKindOfClass:[NSView class]])
-		return NO;
-	return responder == view || [(NSView *) responder isDescendantOf:view];
+	if ([responder isKindOfClass:[NSView class]] &&
+		(responder == view || [(NSView *) responder isDescendantOf:view]))
+		return YES;
+	if ([view isKindOfClass:[NSControl class]]) {
+		editor = [(NSControl *) view currentEditor];
+		if (editor != nil && responder == editor)
+			return YES;
+	}
+	for (subview in [view subviews])
+		if (responderBelongsToView(responder, subview))
+			return YES;
+	return NO;
 }
 
 static void resignResponderBeforeDetachingView(NSView *view)
