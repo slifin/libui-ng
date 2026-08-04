@@ -1,6 +1,32 @@
 // 16 august 2015
 #import "uipriv_darwin.h"
 
+static BOOL responderBelongsToView(NSResponder *responder, NSView *view)
+{
+	if (responder == nil || view == nil)
+		return NO;
+	if (![responder isKindOfClass:[NSView class]])
+		return NO;
+	return responder == view || [(NSView *) responder isDescendantOf:view];
+}
+
+static void resignResponderBeforeDetachingView(NSView *view)
+{
+	NSWindow *window;
+	NSResponder *responder;
+
+	window = [view window];
+	if (window == nil)
+		return;
+	responder = [window firstResponder];
+	if (responderBelongsToView(responder, view)) {
+		if (![window makeFirstResponder:nil]) {
+			[window endEditingFor:nil];
+			[window makeFirstResponder:nil];
+		}
+	}
+}
+
 void uiDarwinControlSyncEnableState(uiDarwinControl *c, int state)
 {
 	(*(c->SyncEnableState))(c, state);
@@ -8,6 +34,8 @@ void uiDarwinControlSyncEnableState(uiDarwinControl *c, int state)
 
 void uiDarwinControlSetSuperview(uiDarwinControl *c, NSView *superview)
 {
+	if (superview == nil)
+		resignResponderBeforeDetachingView((NSView *) uiControlHandle(uiControl(c)));
 	(*(c->SetSuperview))(c, superview);
 }
 

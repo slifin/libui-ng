@@ -373,17 +373,13 @@ void uiWindowSetBorderless(uiWindow *w, int borderless)
 
 void uiWindowSetChild(uiWindow *w, uiControl *child)
 {
-	NSView *childView;
-
 	if (w->child != NULL) {
-		childView = (NSView *) uiControlHandle(w->child);
-		[childView removeFromSuperview];
+		uiDarwinControlSetSuperview(uiDarwinControl(w->child), nil);
 		uiControlSetParent(w->child, NULL);
 	}
 	w->child = child;
 	if (w->child != NULL) {
 		uiControlSetParent(w->child, uiControl(w));
-		childView = (NSView *) uiControlHandle(w->child);
 		uiDarwinControlSetSuperview(uiDarwinControl(w->child), [w->window contentView]);
 		uiDarwinControlSyncEnableState(uiDarwinControl(w->child), uiControlEnabledToUser(uiControl(w)));
 	}
