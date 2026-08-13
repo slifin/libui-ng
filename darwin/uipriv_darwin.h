@@ -45,12 +45,16 @@ void uiprivNSTextFieldSetStyleSearchEntry(NSTextField *t);
 @property (unsafe_unretained) uiprivMenuItem *quitItem;
 @property (unsafe_unretained) uiprivMenuItem *preferencesItem;
 @property (unsafe_unretained) uiprivMenuItem *aboutItem;
+@property (unsafe_unretained) NSMenuItem *applicationMenuItem;
+@property (unsafe_unretained) NSMenuItem *hideItem;
 - (NSMenu *)makeMenubar;
 - (BOOL)finalized;
 - (void)finalize;
+- (void)setApplicationName:(NSString *)name;
 @end
 extern void uiprivFinalizeMenus(void);
 extern void uiprivUninitMenus(void);
+extern BOOL uiprivMenuHasEditRoleItems(void);
 
 // main.m
 @interface uiprivApplicationClass : NSApplication

@@ -9,6 +9,7 @@ struct uiMenu {
 struct uiMenuItem {
 	uiprivMenuItem *item;
 	int type;
+	int role;
 	BOOL disabled;
 	void (*onClicked)(uiMenuItem *, uiWindow *, void *);
 	void *onClickedData;
@@ -20,7 +21,115 @@ enum uiprivMenuItemType {
 	typeQuit,
 	typePreferences,
 	typeAbout,
+	typeRole,
 };
+
+struct uiprivMenuItemRoleInfo {
+	const char *title;
+	SEL action;
+	NSString *key;
+	NSEventModifierFlags modifiers;
+	BOOL edit;
+};
+
+static BOOL hasEditRoleItems = NO;
+
+static struct uiprivMenuItemRoleInfo roleInfo(uiDarwinMenuItemRole role)
+{
+	struct uiprivMenuItemRoleInfo info;
+
+	info.title = "";
+	info.action = NULL;
+	info.key = @"";
+	info.modifiers = 0;
+	info.edit = NO;
+
+	switch (role) {
+	case uiDarwinMenuItemRoleClose:
+		info.title = "Close";
+		info.action = @selector(performClose:);
+		info.key = @"w";
+		info.modifiers = NSCommandKeyMask;
+		break;
+	case uiDarwinMenuItemRoleMinimize:
+		info.title = "Minimize";
+		info.action = @selector(performMiniaturize:);
+		info.key = @"m";
+		info.modifiers = NSCommandKeyMask;
+		break;
+	case uiDarwinMenuItemRoleZoom:
+		info.title = "Zoom";
+		info.action = @selector(performZoom:);
+		break;
+	case uiDarwinMenuItemRoleBringAllToFront:
+		info.title = "Bring All to Front";
+		info.action = @selector(arrangeInFront:);
+		break;
+	case uiDarwinMenuItemRoleUndo:
+		info.title = "Undo";
+		info.action = @selector(undo:);
+		info.key = @"z";
+		info.modifiers = NSCommandKeyMask;
+		info.edit = YES;
+		break;
+	case uiDarwinMenuItemRoleRedo:
+		info.title = "Redo";
+		info.action = @selector(redo:);
+		info.key = @"z";
+		info.modifiers = NSCommandKeyMask | NSShiftKeyMask;
+		info.edit = YES;
+		break;
+	case uiDarwinMenuItemRoleCut:
+		info.title = "Cut";
+		info.action = @selector(cut:);
+		info.key = @"x";
+		info.modifiers = NSCommandKeyMask;
+		info.edit = YES;
+		break;
+	case uiDarwinMenuItemRoleCopy:
+		info.title = "Copy";
+		info.action = @selector(copy:);
+		info.key = @"c";
+		info.modifiers = NSCommandKeyMask;
+		info.edit = YES;
+		break;
+	case uiDarwinMenuItemRolePaste:
+		info.title = "Paste";
+		info.action = @selector(paste:);
+		info.key = @"v";
+		info.modifiers = NSCommandKeyMask;
+		info.edit = YES;
+		break;
+	case uiDarwinMenuItemRoleSelectAll:
+		info.title = "Select All";
+		info.action = @selector(selectAll:);
+		info.key = @"a";
+		info.modifiers = NSCommandKeyMask;
+		info.edit = YES;
+		break;
+	default:
+		uiprivUserBug("Unknown uiDarwinMenuItemRole %d.", (int) role);
+		break;
+	}
+
+	return info;
+}
+
+static NSEventModifierFlags toNSModifiers(uiModifiers modifiers)
+{
+	NSEventModifierFlags flags;
+
+	flags = 0;
+	if ((modifiers & uiModifierCtrl) != 0)
+		flags |= NSControlKeyMask;
+	if ((modifiers & uiModifierAlt) != 0)
+		flags |= NSAlternateKeyMask;
+	if ((modifiers & uiModifierShift) != 0)
+		flags |= NSShiftKeyMask;
+	if ((modifiers & uiModifierSuper) != 0)
+		flags |= NSCommandKeyMask;
+	return flags;
+}
 
 @interface uiprivMenu : NSMenu {
 @public
@@ -47,6 +156,21 @@ enum uiprivMenuItemType {
 		self->item = i;
 
 		[self setTarget:self];
+	}
+	return self;
+}
+
+// Standard AppKit commands are dispatched through the responder chain, so the
+// target stays nil and AppKit validates the item against the responder that
+// implements the action.
+- (id)initWithTitle:(NSString *)title action:(SEL)action keyEquivalent:(NSString *)key modifiers:(NSEventModifierFlags)modifiers uiMenuItem:(uiMenuItem *)i
+{
+	self = [super initWithTitle:title action:action keyEquivalent:key];
+	if (self) {
+		self->item = i;
+
+		[self setKeyEquivalentModifierMask:modifiers];
+		[self setTarget:nil];
 	}
 	return self;
 }
@@ -162,6 +286,7 @@ enum uiprivMenuItemType {
 	appMenu = [[[NSMenu alloc] initWithTitle:appName] autorelease];
 	[appMenuItem setSubmenu:appMenu];
 	[menubar addItem:appMenuItem];
+	self.applicationMenuItem = appMenuItem;
 
 	// first is About
 	title = [@"About " stringByAppendingString:appName];
@@ -173,6 +298,8 @@ enum uiprivMenuItemType {
 
 	// next is Preferences
 	pitem = [[[uiprivMenuItem alloc] initWithTitle:@"Preferences\u2026" uiMenuItem:NULL] autorelease];
+	[pitem setKeyEquivalent:@","];
+	[pitem setKeyEquivalentModifierMask:NSCommandKeyMask];
 	[appMenu addItem:pitem];
 	self.preferencesItem = pitem;
 
@@ -193,6 +320,7 @@ enum uiprivMenuItemType {
 	// the .xib file says they go to -1 ("First Responder", which sounds wrong...)
 	// to do that, we simply leave the target as nil
 	[appMenu addItem:item];
+	self.hideItem = item;
 	item = [[[NSMenuItem alloc] initWithTitle:@"Hide Others" action:@selector(hideOtherApplications:) keyEquivalent:@"h"] autorelease];
 	[item setKeyEquivalentModifierMask:(NSAlternateKeyMask | NSCommandKeyMask)];
 	[appMenu addItem:item];
@@ -205,8 +333,21 @@ enum uiprivMenuItemType {
 	// DON'T use @selector(terminate:) as the action; we handle termination ourselves
 	title = [@"Quit " stringByAppendingString:appName];
 	pitem = [[[uiprivMenuItem alloc] initWithTitle:title uiMenuItem:NULL] autorelease];
+	[pitem setKeyEquivalent:@"q"];
+	[pitem setKeyEquivalentModifierMask:NSCommandKeyMask];
 	[appMenu addItem:pitem];
 	self.quitItem = pitem;
+}
+
+- (void)setApplicationName:(NSString *)name
+{
+	if ([name length] == 0)
+		return;
+	[self.applicationMenuItem setTitle:name];
+	[[self.applicationMenuItem submenu] setTitle:name];
+	[self.aboutItem setTitle:[@"About " stringByAppendingString:name]];
+	[self.hideItem setTitle:[@"Hide " stringByAppendingString:name]];
+	[self.quitItem setTitle:[@"Quit " stringByAppendingString:name]];
 }
 
 - (NSMenu *)makeMenubar
@@ -240,8 +381,37 @@ void uiMenuItemOnClicked(uiMenuItem *item, void (*f)(uiMenuItem *, uiWindow *, v
 {
 	if (item->type == typeQuit)
 		uiprivUserBug("You can't call uiMenuItemOnClicked() on a Quit item; use uiOnShouldQuit() instead.");
+	if (item->type == typeRole)
+		uiprivUserBug("You can't call uiMenuItemOnClicked() on a standard role item; the system handles it.");
 	item->onClicked = f;
 	item->onClickedData = data;
+}
+
+void uiMenuItemSetShortcut(uiMenuItem *item, const char *key, uiModifiers modifiers)
+{
+	@autoreleasepool {
+
+	NSString *equivalent;
+
+	if (item->type == typeRole)
+		uiprivUserBug("You can't call uiMenuItemSetShortcut() on a standard role item; it already has the system shortcut.");
+	if (item->type == typeQuit || item->type == typePreferences || item->type == typeAbout)
+		uiprivUserBug("You can't call uiMenuItemSetShortcut() on a Quit, Preferences or About item; it already has the system shortcut.");
+
+	if (key == NULL || *key == '\0') {
+		[item->item setKeyEquivalent:@""];
+		[item->item setKeyEquivalentModifierMask:0];
+		return;
+	}
+
+	equivalent = uiprivToNSString(key);
+	if ([equivalent length] != 1)
+		uiprivUserBug("A menu item shortcut key must be exactly one character; got \"%s\".", key);
+
+	[item->item setKeyEquivalent:equivalent];
+	[item->item setKeyEquivalentModifierMask:toNSModifiers(modifiers)];
+
+	} // @autoreleasepool
 }
 
 int uiMenuItemChecked(uiMenuItem *item)
@@ -325,6 +495,58 @@ uiMenuItem *uiMenuAppendAboutItem(uiMenu *m)
 	return newItem(m, typeAbout, NULL);
 }
 
+uiMenuItem *uiDarwinMenuAppendRoleItem(uiMenu *m, uiDarwinMenuItemRole role)
+{
+	@autoreleasepool {
+
+	uiMenuItem *item;
+	struct uiprivMenuItemRoleInfo info;
+
+	if ([uiprivAppDelegate().menuManager finalized])
+		uiprivUserBug("You can't create a new menu item after menus have been finalized.");
+
+	info = roleInfo(role);
+
+	item = uiprivNew(uiMenuItem);
+	item->type = typeRole;
+	item->role = (int) role;
+	item->onClicked = defaultOnClicked;
+	item->onClickedData = NULL;
+	item->item = [[uiprivMenuItem alloc] initWithTitle:uiprivToNSString(info.title)
+		action:info.action
+		keyEquivalent:info.key
+		modifiers:info.modifiers
+		uiMenuItem:item];
+	[m->menu addItem:item->item];
+
+	if (info.edit)
+		hasEditRoleItems = YES;
+
+	return item;
+
+	} // @autoreleasepool
+}
+
+void uiDarwinMenuSetRole(uiMenu *m, uiDarwinMenuRole role)
+{
+	switch (role) {
+	case uiDarwinMenuRoleWindow:
+		[uiprivNSApp() setWindowsMenu:m->menu];
+		break;
+	case uiDarwinMenuRoleHelp:
+		[uiprivNSApp() setHelpMenu:m->menu];
+		break;
+	default:
+		uiprivUserBug("Unknown uiDarwinMenuRole %d.", (int) role);
+		break;
+	}
+}
+
+BOOL uiprivMenuHasEditRoleItems(void)
+{
+	return hasEditRoleItems;
+}
+
 void uiMenuAppendSeparator(uiMenu *m)
 {
 	[m->menu addItem:[NSMenuItem separatorItem]];
@@ -365,6 +587,7 @@ void uiprivUninitMenus(void)
 	NSMenu *sm;
 	NSMenuItem *smi;
 
+	hasEditRoleItems = NO;
 	for (mi in [[uiprivNSApp() mainMenu] itemArray]) {
 		if ([mi hasSubmenu]) {
 			sm = [mi submenu];

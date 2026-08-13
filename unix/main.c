@@ -97,6 +97,11 @@ void uiQuit(void)
 	gdk_threads_add_idle(quit, NULL);
 }
 
+void uiSetApplicationName(const char *name)
+{
+	g_set_application_name(name);
+}
+
 struct queued {
 	void (*f)(void *);
 	void *data;

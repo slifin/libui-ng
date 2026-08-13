@@ -217,6 +217,72 @@ _UI_EXTERN void uiDarwinNotifyVisibilityChanged(uiDarwinControl *c);
 _UI_EXTERN CGFloat uiDarwinMarginAmount(void *reserved);
 _UI_EXTERN CGFloat uiDarwinPaddingAmount(void *reserved);
 
+// Standard menu items provided by AppKit.
+//
+// Role items carry the platform's own title, key equivalent and behavior, and
+// are validated automatically by AppKit against the current responder chain.
+// They are dispatched through the responder chain rather than through
+// uiMenuItemOnClicked(), so calling uiMenuItemOnClicked() or
+// uiMenuItemSetShortcut() on one is a programmer error.
+_UI_ENUM(uiDarwinMenuItemRole) {
+	uiDarwinMenuItemRoleClose,			// Close, Command-W
+	uiDarwinMenuItemRoleMinimize,			// Minimize, Command-M
+	uiDarwinMenuItemRoleZoom,			// Zoom
+	uiDarwinMenuItemRoleBringAllToFront,		// Bring All to Front
+	uiDarwinMenuItemRoleUndo,			// Undo, Command-Z
+	uiDarwinMenuItemRoleRedo,			// Redo, Shift-Command-Z
+	uiDarwinMenuItemRoleCut,			// Cut, Command-X
+	uiDarwinMenuItemRoleCopy,			// Copy, Command-C
+	uiDarwinMenuItemRolePaste,			// Paste, Command-V
+	uiDarwinMenuItemRoleSelectAll,			// Select All, Command-A
+};
+
+// Menus that AppKit manages on the application's behalf.
+_UI_ENUM(uiDarwinMenuRole) {
+	uiDarwinMenuRoleWindow,	// window list and window ordering commands
+	uiDarwinMenuRoleHelp,	// help placement and the help search field
+};
+
+// Appends a standard menu item to a menu and returns it.
+// Must be called before menus are finalized, that is, before the first window
+// is created.
+_UI_EXTERN uiMenuItem *uiDarwinMenuAppendRoleItem(uiMenu *m, uiDarwinMenuItemRole role);
+
+// Registers a menu with AppKit so the system can manage its contents and
+// placement.
+_UI_EXTERN void uiDarwinMenuSetRole(uiMenu *m, uiDarwinMenuRole role);
+
+// Registers a callback for when the application is reactivated, for instance by
+// clicking its Dock icon. hasVisibleWindows is FALSE when the application has
+// no visible windows left to bring forward, which is when a program typically
+// recreates or reveals its main window.
+_UI_EXTERN void uiDarwinOnApplicationReopen(void (*f)(int hasVisibleWindows, void *data), void *data);
+
+// Presentation magnification.
+//
+// Enabling hosts the window's child in a magnifying NSScrollView, so AppKit
+// performs the scaling: controls keep drawing through their own vector paths,
+// hit testing and coordinate conversion are handled by the clip view, and the
+// content scrolls when it no longer fits. The window frame, title bar and the
+// menu bar keep their system size.
+//
+// The child's layout is unchanged by magnification; the document view keeps the
+// window's unmagnified content size, so magnifying shows part of the same
+// layout rather than reflowing it.
+//
+// Enable magnification before showing the window where possible; enabling it
+// re-parents an already attached child.
+_UI_EXTERN void uiDarwinWindowSetMagnificationEnabled(uiWindow *w, int enabled);
+_UI_EXTERN int uiDarwinWindowMagnificationEnabled(uiWindow *w);
+
+// Sets the magnification, clamped to the current limits. Requires magnification
+// to have been enabled. 1.0 is the natural size.
+_UI_EXTERN void uiDarwinWindowSetMagnification(uiWindow *w, double magnification);
+_UI_EXTERN double uiDarwinWindowMagnification(uiWindow *w);
+
+// Sets the range a window can be magnified to. Defaults to 0.75 through 2.0.
+_UI_EXTERN void uiDarwinWindowSetMagnificationLimits(uiWindow *w, double minimum, double maximum);
+
 #ifdef __cplusplus
 }
 #endif

@@ -18,6 +18,11 @@ BOOL uiprivSendKeyboardEditEvents(uiprivApplicationClass *app, NSEvent *e)
 	if ([e type] != NSKeyDown)
 		return FALSE;
 
+	// A program that installed the standard Edit role items owns these keys
+	// through its menu, where AppKit validates and highlights them.
+	if (uiprivMenuHasEditRoleItems())
+		return FALSE;
+
 	flags = [e modifierFlags] & NSDeviceIndependentModifierFlagsMask;
 	if (flags != NSCommandKeyMask && flags != (NSCommandKeyMask | NSShiftKeyMask))
 		return FALSE;

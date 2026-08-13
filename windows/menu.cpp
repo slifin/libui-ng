@@ -199,6 +199,12 @@ void uiMenuAppendSeparator(uiMenu *m)
 	newItem(m, typeSeparator, NULL);
 }
 
+// The Windows backend does not install an accelerator table yet; see the note in ui.h.
+void uiMenuItemSetShortcut(uiMenuItem *item, const char *key, uiModifiers modifiers)
+{
+	// do nothing
+}
+
 uiMenu *uiNewMenu(const char *name)
 {
 	uiMenu *m;

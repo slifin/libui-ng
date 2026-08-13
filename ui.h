@@ -55,6 +55,20 @@ _UI_ENUM(uiForEach) {
 	uiForEachStop,
 };
 
+/**
+ * Keyboard modifier keys.
+ *
+ * Usable as bitmasks.
+ *
+ * @enum uiModifiers
+ */
+_UI_ENUM(uiModifiers) {
+	uiModifierCtrl  = 1 << 0, //!< Control key.
+	uiModifierAlt   = 1 << 1, //!< Alternate/Option key.
+	uiModifierShift = 1 << 2, //!< Shift key.
+	uiModifierSuper = 1 << 3, //!< Super/Command/Windows key.
+};
+
 typedef struct uiInitOptions uiInitOptions;
 
 struct uiInitOptions {
@@ -81,6 +95,22 @@ _UI_EXTERN void uiQueueMain(void (*f)(void *data), void *data);
 _UI_EXTERN void uiTimer(int milliseconds, int (*f)(void *data), void *data);
 
 _UI_EXTERN void uiOnShouldQuit(int (*f)(void *data), void *data);
+
+/**
+ * Sets the display name the platform uses for the application.
+ *
+ * @param name Application name.\n
+ *             A `NUL` terminated UTF-8 string.\n
+ *             Data is copied internally. Ownership is not transferred.
+ *
+ * @note On macOS this retitles the application menu and its About, Hide and
+ *       Quit items; it is most useful for programs that are not launched from
+ *       an application bundle, where the process name would be shown instead.
+ * @note On Unix this sets the GLib application name.
+ * @note On Windows this has no effect; the platform has no application menu.
+ * @note Call this after uiInit() and before creating the first window.
+ */
+_UI_EXTERN void uiSetApplicationName(const char *name);
 
 
 /**
@@ -454,6 +484,18 @@ _UI_EXTERN void uiWindowOnFocusChanged(uiWindow *w,
  * @memberof uiWindow
  */
 _UI_EXTERN int uiWindowFocused(uiWindow *w);
+
+/**
+ * Raises the window, gives it keyboard focus and activates the application.
+ *
+ * @param w uiWindow instance.
+ *
+ * @note The window is shown if it is currently hidden.
+ * @note Platforms are free to refuse activation requests from a background
+ *       application; this is a request, not a guarantee.
+ * @memberof uiWindow
+ */
+_UI_EXTERN void uiWindowFocus(uiWindow *w);
 
 /**
  * Returns whether or not the window is borderless.
@@ -1948,6 +1990,30 @@ _UI_EXTERN uiMenuItem *uiMenuAppendAboutItem(uiMenu *m);
 _UI_EXTERN void uiMenuAppendSeparator(uiMenu *m);
 
 /**
+ * Sets the keyboard shortcut that activates a menu item.
+ *
+ * @param item uiMenuItem instance.
+ * @param key Shortcut key.\n
+ *            A `NUL` terminated UTF-8 string holding exactly one character,
+ *            written without its modifiers, for example `"w"` or `"0"`.\n
+ *            Pass `NULL` or an empty string to remove an existing shortcut.\n
+ *            Data is copied internally. Ownership is not transferred.
+ * @param modifiers Modifier keys held with @p key. `uiModifierSuper` is the
+ *                  Command key on macOS.
+ *
+ * @note On macOS this is the item's key equivalent, displayed by the menu and
+ *       dispatched by the system.
+ * @note On Unix and Windows this currently has no effect; those backends do not
+ *       yet install accelerators.
+ * @note Shortcuts cannot be set on items created by uiMenuAppendQuitItem(),
+ *       uiMenuAppendPreferencesItem(), uiMenuAppendAboutItem() or
+ *       uiDarwinMenuAppendRoleItem(); those carry the platform's own shortcut.
+ * @memberof uiMenuItem
+ */
+_UI_EXTERN void uiMenuItemSetShortcut(uiMenuItem *item, const char *key,
+	uiModifiers modifiers);
+
+/**
  * Creates a new menu.
  *
  * Typical values are `File`, `Edit`, `Help`.
@@ -2087,6 +2153,56 @@ _UI_EXTERN void uiAreaBeginUserWindowMove(uiArea *a);
 _UI_EXTERN void uiAreaBeginUserWindowResize(uiArea *a, uiWindowResizeEdge edge);
 _UI_EXTERN uiArea *uiNewArea(uiAreaHandler *ah);
 _UI_EXTERN uiArea *uiNewScrollingArea(uiAreaHandler *ah, int width, int height);
+
+typedef struct uiAreaScrollEvent uiAreaScrollEvent;
+
+/**
+ * Scroll wheel or scroll gesture event.
+ *
+ * @struct uiAreaScrollEvent
+ */
+struct uiAreaScrollEvent {
+	double X; //!< Pointer position, in area coordinates.
+	double Y; //!< Pointer position, in area coordinates.
+
+	//! Area width; only defined for non-scrolling areas.
+	double AreaWidth;
+	//! Area height; only defined for non-scrolling areas.
+	double AreaHeight;
+
+	//! Horizontal scroll amount; positive scrolls the content right.
+	double DeltaX;
+	//! Vertical scroll amount; positive scrolls the content down.
+	double DeltaY;
+
+	//! `TRUE` when the deltas come from a high-resolution device such as a
+	//! trackpad, `FALSE` for a classic notched wheel.
+	int Precise;
+
+	uiModifiers Modifiers; //!< Modifier keys held during the event.
+};
+
+/**
+ * Registers a callback for scroll wheel and scroll gesture events.
+ *
+ * @param a uiArea instance.
+ * @param f Callback function.\n
+ *          @p sender Back reference to the instance that triggered the callback.\n
+ *          @p e Scroll event.\n
+ *          @p senderData User data registered with the sender instance.\n
+ *          Return:\n
+ *          `TRUE` to consume the event.\n
+ *          `FALSE` to let the platform handle it, scrolling a scrolling area.
+ * @param data User data to be passed to the callback.
+ *
+ * @note Only one callback can be registered at a time.
+ * @note Only macOS delivers these events at present. Unix and Windows accept
+ *       the registration and never invoke the callback.
+ * @memberof uiArea
+ */
+_UI_EXTERN void uiAreaOnScroll(uiArea *a,
+	int (*f)(uiArea *sender, uiAreaScrollEvent *e, void *senderData),
+	void *data);
 
 struct uiAreaDrawParams {
 	uiDrawContext *Context;
@@ -2800,20 +2916,6 @@ _UI_EXTERN uiFontButton *uiNewFontButton(void);
  * @memberof uiFontButton
  */
 _UI_EXTERN void uiFreeFontButtonFont(uiFontDescriptor *desc);
-
-/**
- * Keyboard modifier keys.
- *
- * Usable as bitmasks.
- *
- * @enum uiModifiers
- */
-_UI_ENUM(uiModifiers) {
-	uiModifierCtrl  = 1 << 0, //!< Control key.
-	uiModifierAlt   = 1 << 1, //!< Alternate/Option key.
-	uiModifierShift = 1 << 2, //!< Shift key.
-	uiModifierSuper = 1 << 3, //!< Super/Command/Windows key.
-};
 
 // TODO document drag captures
 struct uiAreaMouseEvent {

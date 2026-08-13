@@ -9,6 +9,8 @@ static uiprivAppDelegate *delegate;
 
 static BOOL (^isRunning)(void);
 static BOOL stepsIsRunning;
+static void (*onApplicationReopen)(int, void *);
+static void *onApplicationReopenData;
 
 @implementation uiprivApplicationClass
 
@@ -91,8 +93,6 @@ static BOOL stepsIsRunning;
 
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)app
 {
-	// for debugging
-	NSLog(@"in applicationShouldTerminate:");
 	if (uiprivShouldQuit()) {
 		canQuit = YES;
 		// this will call terminate:, which is the same as uiQuit()
@@ -106,7 +106,29 @@ static BOOL stepsIsRunning;
 	return NO;
 }
 
+// Sent when the application is reactivated, for instance by clicking its Dock
+// icon. Without this a program whose windows have all been closed looks dead.
+- (BOOL)applicationShouldHandleReopen:(NSApplication *)app hasVisibleWindows:(BOOL)hasVisibleWindows
+{
+	if (onApplicationReopen != NULL)
+		(*onApplicationReopen)(hasVisibleWindows ? 1 : 0, onApplicationReopenData);
+	return YES;
+}
+
 @end
+
+void uiDarwinOnApplicationReopen(void (*f)(int hasVisibleWindows, void *data), void *data)
+{
+	onApplicationReopen = f;
+	onApplicationReopenData = data;
+}
+
+void uiSetApplicationName(const char *name)
+{
+	@autoreleasepool {
+		[uiprivAppDelegate().menuManager setApplicationName:uiprivToNSString(name)];
+	}
+}
 
 uiInitOptions uiprivOptions;
 

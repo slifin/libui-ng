@@ -437,6 +437,16 @@ int uiWindowFocused(uiWindow *w)
 	return w->focused;
 }
 
+void uiWindowFocus(uiWindow *w)
+{
+	if (IsIconic(w->hwnd))
+		ShowWindow(w->hwnd, SW_RESTORE);
+	else
+		ShowWindow(w->hwnd, SW_SHOW);
+	SetForegroundWindow(w->hwnd);
+	SetActiveWindow(w->hwnd);
+}
+
 int uiWindowBorderless(uiWindow *w)
 {
 	return w->borderless;

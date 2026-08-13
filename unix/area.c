@@ -510,6 +510,12 @@ void uiAreaQueueRedrawAll(uiArea *a)
 	gtk_widget_queue_draw(a->areaWidget);
 }
 
+// The GTK backend does not deliver scroll events yet; see the note in ui.h.
+void uiAreaOnScroll(uiArea *a, int (*f)(uiArea *, uiAreaScrollEvent *, void *), void *data)
+{
+	// do nothing
+}
+
 void uiAreaScrollTo(uiArea *a, double x, double y, double width, double height)
 {
 	// TODO

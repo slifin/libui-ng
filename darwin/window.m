@@ -23,7 +23,36 @@ struct uiWindow {
 	int borderless;
 	int resizeable;
 	int focused;
+	NSScrollView *magnifier;
+	NSView *magnifiedContent;
+	double minMagnification;
+	double maxMagnification;
 };
+
+// The view libui's child is constrained against. With magnification enabled
+// this is the magnifying scroll view's document view, so every constraint stays
+// inside the magnified coordinate system and none crosses the clip view's
+// scaled bounds.
+static NSView *windowContentContainer(uiWindow *w)
+{
+	if (w->magnifier != nil)
+		return w->magnifiedContent;
+	return [w->window contentView];
+}
+
+// The document view keeps the window's unmagnified content size, so magnifying
+// reveals part of an unchanged layout and scrolls, rather than reflowing it.
+static void resizeMagnifiedContent(uiWindow *w)
+{
+	NSRect frame;
+
+	if (w->magnifier == nil)
+		return;
+	frame = [w->magnifier frame];
+	frame.origin = NSZeroPoint;
+	[w->magnifiedContent setFrame:frame];
+}
+
 
 @implementation uiprivNSWindow
 
@@ -69,6 +98,7 @@ struct uiWindow {
 {
 	uiWindow *w = self->window;
 
+	resizeMagnifiedContent(w);
 	if (!w->suppressSizeChanged)
 		(*(w->onContentSizeChanged))(w, w->onContentSizeChangedData);
 }
@@ -124,7 +154,7 @@ static void removeConstraints(uiWindow *w)
 {
 	NSView *cv;
 
-	cv = [w->window contentView];
+	cv = windowContentContainer(w);
 	uiprivSingleChildConstraintsRemove(&(w->constraints), cv);
 }
 
@@ -210,7 +240,7 @@ static void windowRelayout(uiWindow *w)
 	if (w->child == NULL)
 		return;
 	childView = (NSView *) uiControlHandle(w->child);
-	contentView = [w->window contentView];
+	contentView = windowContentContainer(w);
 	uiprivSingleChildConstraintsEstablish(&(w->constraints),
 		contentView, childView,
 		uiDarwinControlHugsTrailingEdge(uiDarwinControl(w->child)),
@@ -342,6 +372,15 @@ int uiWindowFocused(uiWindow *w)
 	return w->focused;
 }
 
+void uiWindowFocus(uiWindow *w)
+{
+	// NSRunningApplication is used rather than -[NSApplication activateIgnoringOtherApps:]
+	// because the latter is deprecated as of macOS 14.
+	[[NSRunningApplication currentApplication]
+		activateWithOptions:NSApplicationActivateIgnoringOtherApps];
+	[w->window makeKeyAndOrderFront:w->window];
+}
+
 void uiWindowOnClosing(uiWindow *w, int (*f)(uiWindow *, void *), void *data)
 {
 	w->onClosing = f;
@@ -380,10 +419,95 @@ void uiWindowSetChild(uiWindow *w, uiControl *child)
 	w->child = child;
 	if (w->child != NULL) {
 		uiControlSetParent(w->child, uiControl(w));
-		uiDarwinControlSetSuperview(uiDarwinControl(w->child), [w->window contentView]);
+		uiDarwinControlSetSuperview(uiDarwinControl(w->child), windowContentContainer(w));
 		uiDarwinControlSyncEnableState(uiDarwinControl(w->child), uiControlEnabledToUser(uiControl(w)));
 	}
 	windowRelayout(w);
+}
+
+void uiDarwinWindowSetMagnificationEnabled(uiWindow *w, int enabled)
+{
+	NSView *content;
+
+	if ((w->magnifier != nil) == (enabled != 0))
+		return;
+
+	if (enabled) {
+		NSScrollView *sv;
+		NSView *document;
+
+		content = [w->window contentView];
+		sv = [[NSScrollView alloc] initWithFrame:[content bounds]];
+		document = [[NSView alloc] initWithFrame:[content bounds]];
+
+		[sv setAllowsMagnification:YES];
+		[sv setMinMagnification:w->minMagnification];
+		[sv setMaxMagnification:w->maxMagnification];
+		[sv setHasHorizontalScroller:YES];
+		[sv setHasVerticalScroller:YES];
+		[sv setAutohidesScrollers:YES];
+		[sv setBorderType:NSNoBorder];
+		[sv setDrawsBackground:NO];
+		[sv setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable)];
+		[sv setDocumentView:document];
+		[document release];
+
+		removeConstraints(w);
+		if (w->child != NULL)
+			uiDarwinControlSetSuperview(uiDarwinControl(w->child), nil);
+		w->magnifier = sv;
+		w->magnifiedContent = document;
+		[w->window setContentView:sv];
+		[sv release];
+		resizeMagnifiedContent(w);
+	} else {
+		removeConstraints(w);
+		if (w->child != NULL)
+			uiDarwinControlSetSuperview(uiDarwinControl(w->child), nil);
+		w->magnifier = nil;
+		w->magnifiedContent = nil;
+		content = [[[NSView alloc] initWithFrame:NSZeroRect] autorelease];
+		[w->window setContentView:content];
+	}
+
+	if (w->child != NULL)
+		uiDarwinControlSetSuperview(uiDarwinControl(w->child), windowContentContainer(w));
+	windowRelayout(w);
+}
+
+int uiDarwinWindowMagnificationEnabled(uiWindow *w)
+{
+	return w->magnifier != nil;
+}
+
+void uiDarwinWindowSetMagnification(uiWindow *w, double magnification)
+{
+	if (w->magnifier == nil)
+		uiprivUserBug("You must call uiDarwinWindowSetMagnificationEnabled() before magnifying a uiWindow.");
+	if (magnification < w->minMagnification)
+		magnification = w->minMagnification;
+	if (magnification > w->maxMagnification)
+		magnification = w->maxMagnification;
+	[w->magnifier setMagnification:magnification];
+}
+
+double uiDarwinWindowMagnification(uiWindow *w)
+{
+	if (w->magnifier == nil)
+		return 1.0;
+	return [w->magnifier magnification];
+}
+
+void uiDarwinWindowSetMagnificationLimits(uiWindow *w, double minimum, double maximum)
+{
+	if (minimum <= 0 || maximum < minimum)
+		uiprivUserBug("Invalid magnification limits %g and %g.", minimum, maximum);
+	w->minMagnification = minimum;
+	w->maxMagnification = maximum;
+	if (w->magnifier != nil) {
+		[w->magnifier setMinMagnification:minimum];
+		[w->magnifier setMaxMagnification:maximum];
+	}
 }
 
 int uiWindowMargined(uiWindow *w)
@@ -440,6 +564,9 @@ uiWindow *uiNewWindow(const char *title, int width, int height, int hasMenubar)
 		uiWindow:w];
 	uiWindowSetTitle(w, title);
 	uiWindowSetResizeable(w, 1);
+
+	w->minMagnification = 0.75;
+	w->maxMagnification = 2.0;
 
 	uiWindowOnClosing(w, defaultOnClosing, NULL);
 	uiWindowOnFocusChanged(w, defaultOnFocusChanged, NULL);

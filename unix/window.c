@@ -268,6 +268,11 @@ int uiWindowFocused(uiWindow *w)
 	return w->focused;
 }
 
+void uiWindowFocus(uiWindow *w)
+{
+	gtk_window_present(w->window);
+}
+
 void uiWindowOnFocusChanged(uiWindow *w, void (*f)(uiWindow *, void *), void *data)
 {
 	w->onFocusChanged = f;

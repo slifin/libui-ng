@@ -225,6 +225,12 @@ void uiMenuAppendSeparator(uiMenu *m)
 	newItem(m, typeSeparator, NULL);
 }
 
+// The GTK backend does not install accelerators yet; see the note in ui.h.
+void uiMenuItemSetShortcut(uiMenuItem *item, const char *key, uiModifiers modifiers)
+{
+	// do nothing
+}
+
 uiMenu *uiNewMenu(const char *name)
 {
 	uiMenu *m;

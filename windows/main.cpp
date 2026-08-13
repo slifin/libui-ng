@@ -122,6 +122,12 @@ void uiQuit(void)
 	PostQuitMessage(0);
 }
 
+// Windows has no application menu to retitle; see the note in ui.h.
+void uiSetApplicationName(const char *name)
+{
+	// do nothing
+}
+
 void uiQueueMain(void (*f)(void *data), void *data)
 {
 	if (PostMessageW(utilWindow, msgQueued, (WPARAM) f, (LPARAM) data) == 0)
