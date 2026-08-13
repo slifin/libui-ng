@@ -54,7 +54,7 @@ void uiprivNSTextFieldSetStyleSearchEntry(NSTextField *t);
 @end
 extern void uiprivFinalizeMenus(void);
 extern void uiprivUninitMenus(void);
-extern BOOL uiprivMenuHasEditRoleItems(void);
+extern BOOL uiprivMenuHasEditRoleItem(SEL action);
 
 // main.m
 @interface uiprivApplicationClass : NSApplication

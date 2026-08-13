@@ -140,6 +140,7 @@ const char *uiInit(uiInitOptions *o)
 
 void uiUninit(void)
 {
+	uiprivResetShouldQuit();
 	uiprivUninitTimers();
 	uiprivUninitImage();
 	uninitMenus();

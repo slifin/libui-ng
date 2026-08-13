@@ -20,3 +20,12 @@ int uiprivShouldQuit(void)
 {
 	return (*onShouldQuit)(onShouldQuitData);
 }
+
+// A registered callback belongs to the program's initialization, not to the
+// library: a binding that frees its trampolines during uiUninit() would leave
+// this pointing at freed code for the next uiInit().
+void uiprivResetShouldQuit(void)
+{
+	onShouldQuit = defaultOnShouldQuit;
+	onShouldQuitData = NULL;
+}

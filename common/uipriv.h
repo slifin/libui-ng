@@ -36,6 +36,7 @@ extern void uiprivDoUserBug(const char *file, const char *line, const char *func
 
 // shouldquit.c
 extern int uiprivShouldQuit(void);
+extern void uiprivResetShouldQuit(void);
 
 // areaevents.c
 typedef struct uiprivClickCounter uiprivClickCounter;

@@ -168,6 +168,9 @@ void uiUninit(void)
 	[globalPool release];
 
 	@autoreleasepool {
+		uiprivResetShouldQuit();
+		onApplicationReopen = NULL;
+		onApplicationReopenData = NULL;
 		uiprivUninitUnderlineColors();
 		[delegate release];
 		[uiprivNSApp() setDelegate:nil];

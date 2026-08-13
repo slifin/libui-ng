@@ -18,11 +18,6 @@ BOOL uiprivSendKeyboardEditEvents(uiprivApplicationClass *app, NSEvent *e)
 	if ([e type] != NSKeyDown)
 		return FALSE;
 
-	// A program that installed the standard Edit role items owns these keys
-	// through its menu, where AppKit validates and highlights them.
-	if (uiprivMenuHasEditRoleItems())
-		return FALSE;
-
 	flags = [e modifierFlags] & NSDeviceIndependentModifierFlagsMask;
 	if (flags != NSCommandKeyMask && flags != (NSCommandKeyMask | NSShiftKeyMask))
 		return FALSE;
@@ -41,6 +36,13 @@ BOOL uiprivSendKeyboardEditEvents(uiprivApplicationClass *app, NSEvent *e)
 		case 'Z': action = @selector(redo:);      break;
 		default: return FALSE;
 	}
+
+	// A program that put this command in a menu owns its key through AppKit,
+	// which validates and highlights it. Commands it did not put in a menu keep
+	// this fallback, so registering only some Edit role items does not silently
+	// disable the rest.
+	if (uiprivMenuHasEditRoleItem(action))
+		return FALSE;
 
 	return [app sendAction:action to:nil from:app];
 }

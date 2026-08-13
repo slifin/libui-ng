@@ -32,7 +32,10 @@ struct uiprivMenuItemRoleInfo {
 	BOOL edit;
 };
 
-static BOOL hasEditRoleItems = NO;
+// Which Edit commands the program put in a menu. AppKit owns a command's key
+// once it has a menu item for it, but a program that registers only some of
+// them must keep the fallback for the rest.
+static NSMutableSet *editRoleActions = nil;
 
 static struct uiprivMenuItemRoleInfo roleInfo(uiDarwinMenuItemRole role)
 {
@@ -519,8 +522,11 @@ uiMenuItem *uiDarwinMenuAppendRoleItem(uiMenu *m, uiDarwinMenuItemRole role)
 		uiMenuItem:item];
 	[m->menu addItem:item->item];
 
-	if (info.edit)
-		hasEditRoleItems = YES;
+	if (info.edit) {
+		if (editRoleActions == nil)
+			editRoleActions = [[NSMutableSet alloc] init];
+		[editRoleActions addObject:NSStringFromSelector(info.action)];
+	}
 
 	return item;
 
@@ -542,9 +548,11 @@ void uiDarwinMenuSetRole(uiMenu *m, uiDarwinMenuRole role)
 	}
 }
 
-BOOL uiprivMenuHasEditRoleItems(void)
+BOOL uiprivMenuHasEditRoleItem(SEL action)
 {
-	return hasEditRoleItems;
+	if (editRoleActions == nil)
+		return NO;
+	return [editRoleActions containsObject:NSStringFromSelector(action)];
 }
 
 void uiMenuAppendSeparator(uiMenu *m)
@@ -587,7 +595,8 @@ void uiprivUninitMenus(void)
 	NSMenu *sm;
 	NSMenuItem *smi;
 
-	hasEditRoleItems = NO;
+	[editRoleActions release];
+	editRoleActions = nil;
 	for (mi in [[uiprivNSApp() mainMenu] itemArray]) {
 		if ([mi hasSubmenu]) {
 			sm = [mi submenu];

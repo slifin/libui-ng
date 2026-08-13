@@ -35,6 +35,7 @@ static void uninitTimer(gpointer key, gpointer value, gpointer data)
 
 void uiUninit(void)
 {
+	uiprivResetShouldQuit();
 	g_hash_table_foreach(timers, uninitTimer, NULL);
 	g_hash_table_destroy(timers);
 	uiprivUninitMenus();
